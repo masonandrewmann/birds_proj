@@ -13,9 +13,9 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  for (int i = 0; i < 255; i = i + 11){
+  for (int i = 0; i < 255; i = i + 1){
     dac.output(i);
-//    delayMicroseconds(1); 
+    delayMicroseconds(1); 
   }
 //  dac.output(255);
 //  delayMicroseconds(500);
