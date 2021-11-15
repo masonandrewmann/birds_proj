@@ -1,18 +1,42 @@
-#include "AsyncAnalog.h"
 #include "TimerOne.h"
+#include "AsyncAnalog.h"
+#include <SPI.h>
+#include <DAC_MCP49xx.h>
+#define SS_PIN 10 //define chip select pin
+#define TABLESIZE 100
 
-char _printfBuffer[64];
+
 
 #define printf(fmt, ...) \
-  snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__); \
+  snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
   Serial.print(_printfBuffer);
 
+int SineValues[100]; 
+float pointerInc;
+float pointerVal = 0;
+int outVal;
+float outFreq = 300;
+
+//Set up the DAC
+DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
+
+char _printfBuffer[64]; 
+
 // Constants
-constexpr int inputPin = 2; // A2 connected to phototransistor
-constexpr int bufferSize = 750;
+constexpr int inputPin = A0; // A0 connected to microphone
+constexpr int bufferSize = 256;
 constexpr int samplingRate = 5000; // 5khz
-constexpr float targetFreq = 200; // 200hz
+//constexpr float targetFreq = 200; // 200hz
 constexpr float threshold = 30;
+
+//target frequencies:
+//constexpr float targetC4 = 261.63; // C4
+//constexpr float targetD4 = 293.66; // D4
+//constexpr float targetE4 = 329.63; // E4
+//constexpr float targetG4 = 392.00; // G4
+//constexpr float targetA4 = 440.00; // A4
+//constexpr float targetC5 = 523.25; // C5
+float mags[6];
 
 unsigned int writePtr = 0;
 uint16_t adcBuffer[bufferSize];
@@ -20,6 +44,8 @@ uint16_t adcBuffer[bufferSize];
 ISR(ADC_vect) {
   adcBuffer[writePtr] = analogReadGetValue();
   writePtr = (writePtr + 1) % bufferSize;
+  cycle();
+  dac.output(0);
 }
 
 // Just so part of our program doesn't get interruptted
@@ -39,7 +65,7 @@ struct GoertzelBuffer {
     memcpy(currentSamples + startIndex, buffer, sizeof(SAMPLE) * startIndex);
   }
 
-  void init() {
+  void init(FLOATING targetFreq) {
     int k;
     FLOATING floatN;
     FLOATING omega;
@@ -57,11 +83,25 @@ struct GoertzelBuffer {
     printf("k = %d and coeff = %d/100\n\n", (int) k, (int) (coeff * 100));
   }
 
+
   void ProcessSample(SAMPLE sample) {
     FLOATING Q0;
     Q0 = coeff * Q1 - Q2 + (FLOATING) sample;
     Q2 = Q1;
     Q1 = Q0;
+  }
+
+  void updateFreq(FLOATING newFreq){
+    int k;
+    FLOATING floatN;
+    FLOATING omega;
+
+    floatN = (FLOATING) bufferSize;
+    k = (int) (0.5 + ((floatN * newFreq) / samplingRate));
+    omega = (2.0 * PI * k) / floatN;
+    sine = sin(omega);
+    cosine = cos(omega);
+    coeff = 2.0 * cosine;
   }
 
   /* Basic Goertzel */
@@ -97,6 +137,13 @@ struct GoertzelBuffer {
 
 GoertzelBuffer<> goertzel {};
 
+void cycle(){
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  outVal = SineValues[(int)pointerVal];
+  pointerVal += pointerInc;
+  if(pointerVal > TABLESIZE) pointerVal -= TABLESIZE;
+}
+
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   analogReadSetup(inputPin);
@@ -104,7 +151,18 @@ void setup() {
   Timer1.attachInterrupt(analogReadStart);
   Serial.begin(115200);
 
-  goertzel.init();
+    // calculate sine wavetable
+  float RadAngle;                           // Angle in Radians
+  for(int MyAngle=0;MyAngle<TABLESIZE;MyAngle++) {
+    RadAngle=MyAngle*(2*PI)/TABLESIZE;               // angle converted to radians
+    SineValues[MyAngle]=(sin(RadAngle)*127)+128;  // get the sine of this angle and 'shift' to center around the middle of output voltage range
+  }
+
+  //
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
+
+  goertzel.init(261.63);
   delay(1000);
 }
 
@@ -114,17 +172,40 @@ void loop() {
     goertzel.from(adcBuffer);
   }
 
-  float magnitude = goertzel.processAll();
-  char bar[40] = {};
-  int numBars = (int) magnitude / 2;
-  memset(bar, '=', numBars > 39 ? 39 : numBars);
-  // printf("Received magnitude: %d/100\n", (int)(magnitude * 100));
+  //process for all frequencies
+  // C4
+  goertzel.updateFreq(261.63);
+  mags[0] = goertzel.processAll();
+  // D4
+  goertzel.updateFreq(293.66);
+  mags[1] = goertzel.processAll();
+  // E4
+  goertzel.updateFreq(329.63);
+  mags[2] = goertzel.processAll();
+  // G4
+  goertzel.updateFreq(392.00);
+  mags[3] = goertzel.processAll();
+  // A4
+  goertzel.updateFreq(440.00);
+  mags[4] = goertzel.processAll();
+  // C5
+  goertzel.updateFreq(523.25);
+  mags[5] = goertzel.processAll();
 
-  bool toneDetected = magnitude > threshold;
+//  printf(" /n");
 
-  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
-  digitalWrite(LED_BUILTIN, toneDetected);
+  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
+  
+//  char bar[40] = {};
+//  int numBars = (int) magnitude / 2;
+//  memset(bar, '=', numBars > 39 ? 39 : numBars);
+//   printf("Received magnitude: %d/100\n", (int)(magnitude * 100));
+
+//  bool toneDetected = magnitude > threshold;
+
+//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
+//  digitalWrite(LED_BUILTIN, toneDetected);
 
   // Delay for a little bit
-  delay(300);
+//  delay(300);
 }
