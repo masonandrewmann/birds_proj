@@ -15,7 +15,7 @@ int SineValues[100];
 float pointerInc;
 float pointerVal = 0;
 int outVal;
-float outFreq = 300;
+float outFreq = 400;
 
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
@@ -45,7 +45,7 @@ ISR(ADC_vect) {
   adcBuffer[writePtr] = analogReadGetValue();
   writePtr = (writePtr + 1) % bufferSize;
   cycle();
-  dac.output(0);
+  dac.output(outVal);
 }
 
 // Just so part of our program doesn't get interruptted
@@ -194,7 +194,7 @@ void loop() {
 
 //  printf(" /n");
 
-  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
+//  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
   
 //  char bar[40] = {};
 //  int numBars = (int) magnitude / 2;
