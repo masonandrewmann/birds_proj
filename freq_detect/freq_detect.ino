@@ -3,7 +3,7 @@
 #include <SPI.h>
 #include <DAC_MCP49xx.h>
 #define SS_PIN 10 //define chip select pin
-#define TABLESIZE 100
+#define TABLESIZE 50
 
 
 
@@ -11,7 +11,7 @@
   snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
   Serial.print(_printfBuffer);
 
-int SineValues[100]; 
+int SineValues[TABLESIZE]; 
 float pointerInc;
 float pointerVal = 0;
 int outVal;
@@ -25,7 +25,7 @@ char _printfBuffer[64];
 // Constants
 constexpr int inputPin = A0; // A0 connected to microphone
 constexpr int bufferSize = 256;
-constexpr int samplingRate = 5000; // 5khz
+constexpr int samplingRate = 2500; // 5khz
 //constexpr float targetFreq = 200; // 200hz
 constexpr float threshold = 30;
 
@@ -175,25 +175,36 @@ void loop() {
   //process for all frequencies
   // C4
   goertzel.updateFreq(261.63);
-  mags[0] = goertzel.processAll();
+  mags[0] = (goertzel.processAll() * 10);
   // D4
   goertzel.updateFreq(293.66);
-  mags[1] = goertzel.processAll();
+  mags[1] = (goertzel.processAll() * 10);
   // E4
   goertzel.updateFreq(329.63);
-  mags[2] = goertzel.processAll();
+  mags[2] = (goertzel.processAll() * 10);
   // G4
   goertzel.updateFreq(392.00);
-  mags[3] = goertzel.processAll();
+  mags[3] = (goertzel.processAll() * 10);
   // A4
   goertzel.updateFreq(440.00);
-  mags[4] = goertzel.processAll();
+  mags[4] = (goertzel.processAll() * 10);
   // C5
   goertzel.updateFreq(523.25);
-  mags[5] = goertzel.processAll();
+  mags[5] = (goertzel.processAll() * 10);
 
 //  printf(" /n");
-
+  Serial.print("C4: ");
+  Serial.print(mags[0]);
+  Serial.print(" D4: ");
+  Serial.print(mags[1]);
+  Serial.print(" E4: ");
+  Serial.print(mags[2]);
+  Serial.print(" G4: ");
+  Serial.print(mags[3]);
+  Serial.print(" A4: ");
+  Serial.print(mags[4]);
+  Serial.print(" C5: ");
+  Serial.println(mags[5]);
 //  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
   
 //  char bar[40] = {};
