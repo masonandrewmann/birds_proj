@@ -19,13 +19,16 @@ DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
 //int attack = 500;
 //int sus = 1000;
 //int decay = 1000;
-int envTimes[4] = [500, 1000, 1000, 0]; // [attack, sustain, release, PLACEHOLDER]
+int envTimes[4] = {500, 500, 500, 0}; // [attack, sustain, release, PLACEHOLDER]
 float envVal = 1;
 boolean noteActive = false;
 unsigned long noteEnd = 0;
 byte envState = 0; // 0 for attack, 1 for sustain, 2 for release, 3 for inactive
 unsigned long sectionStart = 0;
 unsigned long sectionEnd = 0;
+
+//note clock
+unsigned long nextNote = 2500;
 
 
 // Constants
@@ -155,14 +158,14 @@ void cycle(){
   //determine envelope value
   switch (envState){
     case 0: //attack
-      envVal = (millis() - sectionStart)  / (sectionEnd - sectionStart);
+      envVal = (float)(millis() - sectionStart)  / (float)(sectionEnd - sectionStart);
     break;
     case 1: //sustain
       envVal = 1;
     break;
 
     case 2: //release
-      envVal = 1 + (millis() - sectionStart) * (-1) / (sectionEnd - sectionStart);
+      envVal = 1 + (float)(millis() - sectionStart) * (-1) / (float)(sectionEnd - sectionStart);
     break;
     case 3: //end the note
       noteActive = 0;
@@ -202,7 +205,7 @@ void setup() {
     SineValues[MyAngle]=(sin(RadAngle)*127)+128;  // get the sine of this angle and 'shift' to center around the middle of output voltage range
   }
 
-  //
+  // initialize the pointer
   pointerInc = TABLESIZE * (outFreq / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
@@ -215,8 +218,8 @@ void loop() {
     int_guard guard {};
     goertzel.from(adcBuffer);
   }
-
-  //process for all frequencies
+  
+  // try to detect some frequencies
   // C4
   goertzel.updateFreq(261.63);
   mags[0] = (goertzel.processAll() * 10);
@@ -236,31 +239,26 @@ void loop() {
   goertzel.updateFreq(523.25);
   mags[5] = (goertzel.processAll() * 10);
 
-//  printf(" /n");
-  Serial.print("C4: ");
-  Serial.print(mags[0]);
-  Serial.print(" D4: ");
-  Serial.print(mags[1]);
-  Serial.print(" E4: ");
-  Serial.print(mags[2]);
-  Serial.print(" G4: ");
-  Serial.print(mags[3]);
-  Serial.print(" A4: ");
-  Serial.print(mags[4]);
-  Serial.print(" C5: ");
-  Serial.println(mags[5]);
-//  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
-  
-//  char bar[40] = {};
-//  int numBars = (int) magnitude / 2;
-//  memset(bar, '=', numBars > 39 ? 39 : numBars);
-//   printf("Received magnitude: %d/100\n", (int)(magnitude * 100));
+  //print out magnitudes of all frequencies tested
+//  Serial.print("C4: ");
+//  Serial.print(mags[0]);
+//  Serial.print(" D4: ");
+//  Serial.print(mags[1]);
+//  Serial.print(" E4: ");
+//  Serial.print(mags[2]);
+//  Serial.print(" G4: ");
+//  Serial.print(mags[3]);
+//  Serial.print(" A4: ");
+//  Serial.print(mags[4]);
+//  Serial.print(" C5: ");
+//  Serial.println(mags[5]);
+  Serial.println(envVal);
 
+  if (millis() > nextNote){
+    trigNote(200, 200, 500, 500);
+    nextNote = millis() + 2500;
+  }
 //  bool toneDetected = magnitude > threshold;
 
-//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
 //  digitalWrite(LED_BUILTIN, toneDetected);
-
-  // Delay for a little bit
-//  delay(300);
 }
