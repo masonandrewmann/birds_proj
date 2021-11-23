@@ -6,11 +6,6 @@
 #define TABLESIZE 50
 
 
-
-#define printf(fmt, ...) \
-  snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
-  Serial.print(_printfBuffer);
-
 int SineValues[TABLESIZE]; 
 float pointerInc;
 float pointerVal = 0;
@@ -20,7 +15,18 @@ float outFreq = 400;
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
 
-char _printfBuffer[64]; 
+//Set up ASR envelope
+//int attack = 500;
+//int sus = 1000;
+//int decay = 1000;
+int envTimes[4] = [500, 1000, 1000, 0]; // [attack, sustain, release, PLACEHOLDER]
+float envVal = 1;
+boolean noteActive = false;
+unsigned long noteEnd = 0;
+byte envState = 0; // 0 for attack, 1 for sustain, 2 for release, 3 for inactive
+unsigned long sectionStart = 0;
+unsigned long sectionEnd = 0;
+
 
 // Constants
 constexpr int inputPin = A0; // A0 connected to microphone
@@ -42,10 +48,14 @@ unsigned int writePtr = 0;
 uint16_t adcBuffer[bufferSize];
 
 ISR(ADC_vect) {
+  //read from microphone
   adcBuffer[writePtr] = analogReadGetValue();
   writePtr = (writePtr + 1) % bufferSize;
-  cycle();
-  dac.output(outVal);
+  //output to speaker
+  if (noteActive){
+    cycle();
+    dac.output(outVal);
+  }
 }
 
 // Just so part of our program doesn't get interruptted
@@ -76,11 +86,6 @@ struct GoertzelBuffer {
     sine = sin(omega);
     cosine = cos(omega);
     coeff = 2.0 * cosine;
-
-    printf("For samplingRate = %d", (int) samplingRate);
-    printf(" N = %d", (int) bufferSize);
-    printf(" and FREQUENCY = %d,\n", (int) targetFreq);
-    printf("k = %d and coeff = %d/100\n\n", (int) k, (int) (coeff * 100));
   }
 
 
@@ -138,10 +143,49 @@ struct GoertzelBuffer {
 GoertzelBuffer<> goertzel {};
 
 void cycle(){
-  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  //grab sample from wavetable
   outVal = SineValues[(int)pointerVal];
+
+  //check envelope state
+  if (millis() > sectionEnd) {
+    envState++;
+    sectionStart = millis();
+    sectionEnd = sectionStart + envTimes[envState];
+  }
+  //determine envelope value
+  switch (envState){
+    case 0: //attack
+      envVal = (millis() - sectionStart)  / (sectionEnd - sectionStart);
+    break;
+    case 1: //sustain
+      envVal = 1;
+    break;
+
+    case 2: //release
+      envVal = 1 + (millis() - sectionStart) * (-1) / (sectionEnd - sectionStart);
+    break;
+    case 3: //end the note
+      noteActive = 0;
+    break;
+  }
+  //multiply by envelope value
+  outVal *= envVal;
+  //increment wavetable pointer
   pointerVal += pointerInc;
   if(pointerVal > TABLESIZE) pointerVal -= TABLESIZE;
+}
+
+void trigNote(float freq, int atk, int sus, int rel){
+  envTimes[0] = atk;
+  envTimes[1] = sus;
+  envTimes[2] = rel;
+  outFreq = freq;
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  noteActive = true;
+  noteEnd = millis() + envTimes[0] + envTimes[1] + envTimes[2];
+  sectionStart = millis();
+  sectionEnd = sectionStart + envTimes[0];
+  envState = 0;
 }
 
 void setup() {
