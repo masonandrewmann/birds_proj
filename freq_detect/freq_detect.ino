@@ -4,18 +4,26 @@
 #include <DAC_MCP49xx.h>
 #define SS_PIN 10 //define chip select pin
 #define TABLESIZE 50
-
+#include <MarkovChain.h>
 
 
 #define printf(fmt, ...) \
   snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
   Serial.print(_printfBuffer);
+  
+MarkovChain chain;
 
 int SineValues[TABLESIZE]; 
 float pointerInc;
 float pointerVal = 0;
 int outVal;
-float outFreq = 400;
+
+int outInd = 0;
+float freqs [] = {261.63, 293.66, 329.63, 392.00, 440.00, 523.25};
+//char elements [] = {'a','b','c','d','e','f'};
+
+
+
 
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
@@ -37,6 +45,8 @@ constexpr float threshold = 30;
 //constexpr float targetA4 = 440.00; // A4
 //constexpr float targetC5 = 523.25; // C5
 float mags[6];
+
+float pitches[6];
 
 unsigned int writePtr = 0;
 uint16_t adcBuffer[bufferSize];
@@ -106,7 +116,7 @@ struct GoertzelBuffer {
 
   /* Basic Goertzel */
   /* Call this routine after every block to get the complex result. */
-  void GetRealImag(FLOATING *realPart, FLOATING *imagPart) {
+  void GetRealImag(FLOATING *realPart, FLOATING * imagPart) {
     *realPart = (Q1 - Q2 * cosine);
     *imagPart = (Q2 * sine);
   }
@@ -138,10 +148,67 @@ struct GoertzelBuffer {
 GoertzelBuffer<> goertzel {};
 
 void cycle(){
-  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
   outVal = SineValues[(int)pointerVal];
   pointerVal += pointerInc;
   if(pointerVal > TABLESIZE) pointerVal -= TABLESIZE;
+}
+
+void trainMarkov(){
+  //Training set to create the transition matrix. It has 3 different sequences.  
+  char ** trainingSet;
+  trainingSet = (char **) malloc(3*sizeof(char *));
+  for(int i = 0; i < 3; i++)
+    trainingSet[i] = (char *) malloc(5*sizeof(char));
+ 
+  //Sequence 0
+  trainingSet[0][0] = 'a';  
+  trainingSet[0][1] = 'b';  
+  trainingSet[0][2] = 'c';  
+  trainingSet[0][3] = 'c';  
+  trainingSet[0][4] = '\0'; 
+  //Sequence 1
+  trainingSet[1][0] = 'a';  
+  trainingSet[1][1] = 'a';  
+  trainingSet[1][2] = 'a';  
+  trainingSet[1][3] = 'a';  
+  trainingSet[1][4] = '\0'; 
+  //Sequence 2
+  trainingSet[2][0] = 'b';  
+  trainingSet[2][1] = 'a';  
+  trainingSet[2][2] = 'b';  
+  trainingSet[2][3] = 'c';  
+  trainingSet[2][4] = '\0';  
+
+  // The sequences are composed by three elements: a, b and c
+  char elements[] = {'a', 'b', 'c'};
+  
+  //We calculate the probability of a element apearing after 'a'  
+  double* probs = chain.getNextTransitions('a', elements, 3, trainingSet, 3);
+  
+  Serial.println("Probability of appearing after element /'a/'");
+  for (int i = 0; i < 3; i++){
+    Serial.print(elements[i]);
+    Serial.print(probs[i]);
+    Serial.println();
+  }
+  
+  
+}
+
+void nextPitch(){
+//remember we have freqs[] and elements[]
+//  float curPitch = freqs[outInd];
+//  
+//  char curEl = elements[outInd];
+//  Serial.print(curEl);
+//  double* probs = chain.getNextTransitions(curEl, elements, 6, trainingSet, 20);
+//  Serial.println("Probability of appearing after element /'a/'");
+//  for (int i = 0; i < 6; i++){
+//    Serial.print(elements[i] + ": ");
+//    Serial.print(probs[i]);
+//    Serial.println();
+//  }
 }
 
 void setup() {
@@ -150,6 +217,7 @@ void setup() {
   Timer1.initialize(1000000 / samplingRate);
   Timer1.attachInterrupt(analogReadStart);
   Serial.begin(115200);
+  trainMarkov();
 
     // calculate sine wavetable
   float RadAngle;                           // Angle in Radians
@@ -159,7 +227,7 @@ void setup() {
   }
 
   //
-  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
   goertzel.init(261.63);
@@ -193,29 +261,37 @@ void loop() {
   mags[5] = (goertzel.processAll() * 10);
 
 //  printf(" /n");
-  Serial.print("C4: ");
-  Serial.print(mags[0]);
-  Serial.print(" D4: ");
-  Serial.print(mags[1]);
-  Serial.print(" E4: ");
-  Serial.print(mags[2]);
-  Serial.print(" G4: ");
-  Serial.print(mags[3]);
-  Serial.print(" A4: ");
-  Serial.print(mags[4]);
-  Serial.print(" C5: ");
-  Serial.println(mags[5]);
+
+
+//  Serial.print("C4: ");
+//  Serial.print(mags[0]);
+//  Serial.print(" D4: ");
+//  Serial.print(mags[1]);
+//  Serial.print(" E4: ");
+//  Serial.print(mags[2]);
+//  Serial.print(" G4: ");
+//  Serial.print(mags[3]);
+//  Serial.print(" A4: ");
+//  Serial.print(mags[4]);
+//  Serial.print(" C5: ");
+//  Serial.println(mags[5]);
+
+
 //  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
+
+//  once the tone is detected, play the next tone.
   
-//  char bar[40] = {};
-//  int numBars = (int) magnitude / 2;
-//  memset(bar, '=', numBars > 39 ? 39 : numBars);
-//   printf("Received magnitude: %d/100\n", (int)(magnitude * 100));
-
-//  bool toneDetected = magnitude > threshold;
-
-//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
+  nextPitch();
+ 
+// SWITCH DEPENDING ON THE BIRD
+//  bool toneDetected = mags[0] > threshold;
 //  digitalWrite(LED_BUILTIN, toneDetected);
+
+  
+
+  
+//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
+  
 
   // Delay for a little bit
 //  delay(300);
