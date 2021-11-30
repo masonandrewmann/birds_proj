@@ -6,6 +6,11 @@
 #define TABLESIZE 50
 #include <MarkovChain.h>
 
+
+#define printf(fmt, ...) \
+  snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
+  Serial.print(_printfBuffer);
+  
 MarkovChain chain;
 
 int SineValues[TABLESIZE]; 
@@ -19,26 +24,11 @@ float freqs [] = {261.63, 293.66, 329.63, 392.00, 440.00, 523.25};
 
 
 
-float outFreq = 400;
 
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
 
-//Set up ASR envelope
-//int attack = 500;
-//int sus = 1000;
-//int decay = 1000;
-int envTimes[4] = {500, 500, 500, 0}; // [attack, sustain, release, PLACEHOLDER]
-float envVal = 1;
-boolean noteActive = false;
-unsigned long noteEnd = 0;
-byte envState = 0; // 0 for attack, 1 for sustain, 2 for release, 3 for inactive
-unsigned long sectionStart = 0;
-unsigned long sectionEnd = 0;
-
-//note clock
-unsigned long nextNote = 2500;
-
+char _printfBuffer[64]; 
 
 // Constants
 constexpr int inputPin = A0; // A0 connected to microphone
@@ -62,14 +52,10 @@ unsigned int writePtr = 0;
 uint16_t adcBuffer[bufferSize];
 
 ISR(ADC_vect) {
-  //read from microphone
   adcBuffer[writePtr] = analogReadGetValue();
   writePtr = (writePtr + 1) % bufferSize;
-  //output to speaker
-  if (noteActive){
-    cycle();
-    dac.output(outVal);
-  }
+  cycle();
+  dac.output(outVal);
 }
 
 // Just so part of our program doesn't get interruptted
@@ -100,6 +86,11 @@ struct GoertzelBuffer {
     sine = sin(omega);
     cosine = cos(omega);
     coeff = 2.0 * cosine;
+
+    printf("For samplingRate = %d", (int) samplingRate);
+    printf(" N = %d", (int) bufferSize);
+    printf(" and FREQUENCY = %d,\n", (int) targetFreq);
+    printf("k = %d and coeff = %d/100\n\n", (int) k, (int) (coeff * 100));
   }
 
 
@@ -157,49 +148,12 @@ struct GoertzelBuffer {
 GoertzelBuffer<> goertzel {};
 
 void cycle(){
-  //grab sample from wavetable
+  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
   outVal = SineValues[(int)pointerVal];
-
-  //check envelope state
-  if (millis() > sectionEnd) {
-    envState++;
-    sectionStart = millis();
-    sectionEnd = sectionStart + envTimes[envState];
-  }
-  //determine envelope value
-  switch (envState){
-    case 0: //attack
-      envVal = (float)(millis() - sectionStart)  / (float)(sectionEnd - sectionStart);
-    break;
-    case 1: //sustain
-      envVal = 1;
-    break;
-
-    case 2: //release
-      envVal = 1 + (float)(millis() - sectionStart) * (-1) / (float)(sectionEnd - sectionStart);
-    break;
-    case 3: //end the note
-      noteActive = 0;
-    break;
-  }
-  //multiply by envelope value
-  outVal *= envVal;
-  //increment wavetable pointer
   pointerVal += pointerInc;
   if(pointerVal > TABLESIZE) pointerVal -= TABLESIZE;
 }
-void trigNote(float freq, int atk, int sus, int rel){
-  envTimes[0] = atk;
-  envTimes[1] = sus;
-  envTimes[2] = rel;
-  outFreq = freq;
-  pointerInc = TABLESIZE * (outFreq / samplingRate);
-  noteActive = true;
-  noteEnd = millis() + envTimes[0] + envTimes[1] + envTimes[2];
-  sectionStart = millis();
-  sectionEnd = sectionStart + envTimes[0];
-  envState = 0;
-}
+
 void trainMarkov(){
   //Training set to create the transition matrix. It has 3 different sequences.  
   char ** trainingSet;
@@ -255,17 +209,6 @@ void nextPitch(){
 //    Serial.print(probs[i]);
 //    Serial.println();
 //  }
-void trigNote(float freq, int atk, int sus, int rel){
-  envTimes[0] = atk;
-  envTimes[1] = sus;
-  envTimes[2] = rel;
-  outFreq = freq;
-  pointerInc = TABLESIZE * (outFreq / samplingRate);
-  noteActive = true;
-  noteEnd = millis() + envTimes[0] + envTimes[1] + envTimes[2];
-  sectionStart = millis();
-  sectionEnd = sectionStart + envTimes[0];
-  envState = 0;
 }
 
 void setup() {
@@ -283,8 +226,8 @@ void setup() {
     SineValues[MyAngle]=(sin(RadAngle)*127)+128;  // get the sine of this angle and 'shift' to center around the middle of output voltage range
   }
 
-  // initialize the pointer
-  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  //
+  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
   goertzel.init(261.63);
@@ -296,8 +239,8 @@ void loop() {
     int_guard guard {};
     goertzel.from(adcBuffer);
   }
-  
-  // try to detect some frequencies
+
+  //process for all frequencies
   // C4
   goertzel.updateFreq(261.63);
   mags[0] = (goertzel.processAll() * 10);
@@ -317,7 +260,9 @@ void loop() {
   goertzel.updateFreq(523.25);
   mags[5] = (goertzel.processAll() * 10);
 
-  //print out magnitudes of all frequencies tested
+//  printf(" /n");
+
+
 //  Serial.print("C4: ");
 //  Serial.print(mags[0]);
 //  Serial.print(" D4: ");
@@ -330,15 +275,24 @@ void loop() {
 //  Serial.print(mags[4]);
 //  Serial.print(" C5: ");
 //  Serial.println(mags[5]);
-  Serial.println(envVal);
 
-  if (millis() > nextNote){
-    trigNote(200, 200, 500, 500);
-    nextNote = millis() + 2500;
-  }
-//  bool toneDetected = magnitude > threshold;
 
+//  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
+
+//  once the tone is detected, play the next tone.
+  
+  //nextPitch();
+ 
+// SWITCH DEPENDING ON THE BIRD
+//  bool toneDetected = mags[0] > threshold;
 //  digitalWrite(LED_BUILTIN, toneDetected);
 
-  // nextPitch();
+  
+
+  
+//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
+  
+
+  // Delay for a little bit
+//  delay(300);
 }
