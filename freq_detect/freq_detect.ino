@@ -6,6 +6,10 @@
 #define TABLESIZE 50
 #include <MarkovChain.h>
 
+#define LED_1 PD5
+#define LED_2 PD6
+#define BUTTON_PIN PD7
+#define LED_4 PB0
 
 #define printf(fmt, ...) \
   snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
@@ -48,6 +52,7 @@ boolean listening = true;
 unsigned long listenTimer = 2000;
 int listenLength = 2000;
 byte listenCount = 0;
+float outFreq = 100;
 
 
 char _printfBuffer[64]; 
@@ -81,13 +86,13 @@ ISR(ADC_vect) {
   //read from microphone
   adcBuffer[writePtr] = analogReadGetValue();
   writePtr = (writePtr + 1) % bufferSize;
-  cycle();
-  dac.output(outVal);
   //output to speaker
   if (noteActive){
     cycle();
     dac.output(outVal);
-  }
+  } else {
+    dac.output(0);
+  } 
 }
 
 // Just so part of our program doesn't get interruptted
@@ -200,6 +205,7 @@ void cycle(){
     case 3: //end the note
       noteActive = 0;
       listening = true;
+      digitalWrite(LED_1, LOW);
     break;
   }
   //multiply by envelope value
@@ -209,11 +215,9 @@ void cycle(){
   if(pointerVal > TABLESIZE) pointerVal -= TABLESIZE;
 }
 
-}
-
 
 char states[] = {'a','b','c','d','e'};
-float tmatrix[][] = {{1,0,0,0,0},{0,1,0,0,0},{0,0,1,0,0},{0,0,0,1,0},{0,0,0,0,1}};
+//float tmatrix[][] = {{1,0,0,0,0},{0,1,0,0,0},{0,0,1,0,0},{0,0,0,1,0},{0,0,0,0,1}};
 int lenStates = 5; //CHANGE THIS MANUALLY IF WE INCREASE THE NUMBER OF NOTES
 
 void markov(char curVal) {
@@ -291,6 +295,7 @@ void markov(char curVal) {
 //  }
 
 void trigNote(float freq, int atk, int sus, int rel){
+  digitalWrite(LED_1, HIGH);
   envTimes[0] = atk;
   envTimes[1] = sus;
   envTimes[2] = rel;
@@ -304,7 +309,13 @@ void trigNote(float freq, int atk, int sus, int rel){
 }
 
 void setup() {
+  //initialize GPIO pins
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_1, OUTPUT);
+  pinMode(LED_2, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT);
+  pinMode(LED_4, OUTPUT);
+  
   analogReadSetup(inputPin);
   Timer1.initialize(1000000 / samplingRate);
   Timer1.attachInterrupt(analogReadStart);
