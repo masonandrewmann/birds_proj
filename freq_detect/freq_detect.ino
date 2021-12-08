@@ -223,10 +223,15 @@ void markov(char curVal) {
     }
   }
   
-  float curDist[] = {0,0,0,0,0};
   // put a 1 in the current position so we can multiply this matrix by the probability matrix
+  float curDist[] = {0,0,0,0,0};
   curDist[wantedpos] = 1;
-  // this number is wrong i think maybe but i wanna do it on paper to figure it out.
+
+  
+//  float probMatrix1[][] = {{},{},{},{},{},{}}
+  //multiply matrices now
+  
+
   
   
 }
