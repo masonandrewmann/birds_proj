@@ -11,7 +11,6 @@
   snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
   Serial.print(_printfBuffer);
   
-MarkovChain chain;
 
 int SineValues[TABLESIZE]; 
 float pointerInc;
@@ -206,86 +205,10 @@ void cycle(){
   if(pointerVal > TABLESIZE) pointerVal -= TABLESIZE;
 }
 
-}
-
 
 char states[] = {'a','b','c','d','e'};
-float tmatrix[][] = {{1,0,0,0,0},{0,1,0,0,0},{0,0,1,0,0},{0,0,0,1,0},{0,0,0,0,1}};
 int lenStates = 5; //CHANGE THIS MANUALLY IF WE INCREASE THE NUMBER OF NOTES
 
-void markov(char curVal) {
-//  find the current value's index in the states[] array
-  int wantedpos = -1;
-  for (int i=0; i<lenStates; i++) {
-    if (curVal == states[i]) {
-      wantedpos = i;
-      break;
-    }
-  }
-  
-  float curDist[] = {0,0,0,0,0};
-  // put a 1 in the current position so we can multiply this matrix by the probability matrix
-  curDist[wantedpos] = 1;
-  // this number is wrong i think maybe but i wanna do it on paper to figure it out.
-  
-  
-}
-
-//void trainMarkov(){
-//  //Training set to create the transition matrix. It has 3 different sequences.  
-//  char ** trainingSet;
-//  trainingSet = (char **) malloc(3*sizeof(char *));
-//  for(int i = 0; i < 3; i++)
-//    trainingSet[i] = (char *) malloc(5*sizeof(char));
-// 
-//  //Sequence 0
-//  trainingSet[0][0] = 'a';  
-//  trainingSet[0][1] = 'b';  
-//  dtrainingSet[0][2] = 'c';  
-//  trainingSet[0][3] = 'c';  
-//  trainingSet[0][4] = '\0'; 
-//  //Sequence 1
-//  trainingSet[1][0] = 'a';  
-//  trainingSet[1][1] = 'a';  
-//  trainingSet[1][2] = 'a';  
-//  trainingSet[1][3] = 'a';  
-//  trainingSet[1][4] = '\0'; 
-//  //Sequence 2
-//  trainingSet[2][0] = 'b';  
-//  trainingSet[2][1] = 'a';  
-//  trainingSet[2][2] = 'b';  
-//  trainingSet[2][3] = 'c';  
-//  trainingSet[2][4] = '\0';  
-//
-//  // The sequences are composed by three elements: a, b and c
-//  char elements[] = {'a', 'b', 'c'};
-//  
-//  //We calculate the probability of a element apearing after 'a'  
-//  double* probs = chain.getNextTransitions('a', elements, 3, trainingSet, 3);
-//  
-//  Serial.println("Probability of appearing after element /'a/'");
-//  for (int i = 0; i < 3; i++){
-//    Serial.print(elements[i]);
-//    Serial.print(probs[i]);
-//    Serial.println();
-//  }
-//  
-//  
-//}
-
-//void nextPitch(){
-//remember we have freqs[] and elements[]
-//  float curPitch = freqs[outInd];
-//  
-//  char curEl = elements[outInd];
-//  Serial.print(curEl);
-//  double* probs = chain.getNextTransitions(curEl, elements, 6, trainingSet, 20);
-//  Serial.println("Probability of appearing after element /'a/'");
-//  for (int i = 0; i < 6; i++){
-//    Serial.print(elements[i] + ": ");
-//    Serial.print(probs[i]);
-//    Serial.println();
-//  }
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -308,6 +231,8 @@ void setup() {
 
 //starts looking for C4
   goertzel.init(261.63);
+
+  pinMode(PD5, INPUT);
   delay(1000);
 }
 
@@ -316,36 +241,15 @@ void loop() {
     int_guard guard {};
     goertzel.from(adcBuffer);
   }
-  
-  // try to detect some frequencies
-//  // C4
-//  goertzel.updateFreq(freqs[0]); //261.63
-//  mags[0] = (goertzel.processAll() * 10);
-//  // D4
-//  goertzel.updateFreq(freqs[1]); //293.66
-//  mags[1] = (goertzel.processAll() * 10);
-//  // E4
-//  goertzel.updateFreq(freqs[2]); //329.63
-//  mags[2] = (goertzel.processAll() * 10);
-//  // G4
-//  goertzel.updateFreq(freqs[3]); //392.00
-//  mags[3] = (goertzel.processAll() * 10);
-//  // A4
-//  goertzel.updateFreq(freqs[4]); //440.00
-//  mags[4] = (goertzel.processAll(freqs[5]) * 10);
-//  // C5
-//  goertzel.updateFreq(freqs[5]); //523.25
-//  mags[5] = (goertzel.processAll() * 10);
-  
-
+ 
   //determine maximum magnitudes over listening period
-  if (listening){
-  for (int i = 0; i < 6; i++){
-    goertzel.updateFreq(freqs[i]);
-     mags[i] = (goertzel.processAll() * 10);
-    if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
-  }
-  }
+//  if (listening){
+//  for (int i = 0; i < 6; i++){
+//    goertzel.updateFreq(freqs[i]);
+//     mags[i] = (goertzel.processAll() * 10);
+//    if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
+//  }
+//  }
   //print out magnitudes of all frequencies tested
 //  Serial.print("C4: ");
 //  Serial.print(mags[0]);
@@ -362,42 +266,42 @@ void loop() {
 
 
   //determine what note to play
-  if( millis() > listenTimer && !noteActive){
-    float chosenFreq = 0;
-    //find max value of array and its corresponding frequency index
-    float maxVal = magsMax[0];
-    byte maxInd = 0;
-    for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
-      if (magsMax[i] > maxVal){
-        maxVal = magsMax[i];
-        maxInd = i;
-      }
-    }
-    //if max value is above a threshold, play a note
-    if (maxVal > 4000){
-//      chosenFreq = freqs[maxInd] * 1.0595; //one semitone up from played note
-      chosenFreq = freqs[(maxInd+1)%((sizeof(magsMax) / sizeof(magsMax[0])))];
-      trigNote(chosenFreq, 500, 1000, 500);
-      listening = false;
-      listenCount = 0;
-    } else if(listenCount > 3){
-      //play random note if it hasnt sang in a while
-      byte randInd = random((sizeof(magsMax) / sizeof(magsMax[0])));
-      trigNote(freqs[randInd], 500, 1000, 500);
-      listenCount = 0;
-      listening = false;
-    }
-    else {
-      //don'tt play a note
-      listenTimer += listenLength;
-      listenCount++;
-      listening = true;
-    }
-    for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
-      magsMax[i] = 0;
-    }
-    
-  }
+//  if( millis() > listenTimer && !noteActive){
+//    float chosenFreq = 0;
+//    //find max value of array and its corresponding frequency index
+//    float maxVal = magsMax[0];
+//    byte maxInd = 0;
+//    for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
+//      if (magsMax[i] > maxVal){
+//        maxVal = magsMax[i];
+//        maxInd = i;
+//      }
+//    }
+//    //if max value is above a threshold, play a note
+//    if (maxVal > 4000){
+////      chosenFreq = freqs[maxInd] * 1.0595; //one semitone up from played note
+//      chosenFreq = freqs[(maxInd+1)%((sizeof(magsMax) / sizeof(magsMax[0])))];
+//      trigNote(chosenFreq, 500, 1000, 500);
+//      listening = false;
+//      listenCount = 0;
+//    } else if(listenCount > 3){
+//      //play random note if it hasnt sang in a while
+//      byte randInd = random((sizeof(magsMax) / sizeof(magsMax[0])));
+//      trigNote(freqs[randInd], 500, 1000, 500);
+//      listenCount = 0;
+//      listening = false;
+//    }
+//    else {
+//      //don'tt play a note
+//      listenTimer += listenLength;
+//      listenCount++;
+//      listening = true;
+//    }
+//    for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
+//      magsMax[i] = 0;
+//    }
+//    
+//  }
 
  
 //  if (millis() > nextNote){
@@ -412,16 +316,9 @@ void loop() {
   
   //nextPitch();
  
-// SWITCH DEPENDING ON THE BIRD
-//  bool toneDetected = mags[0] > threshold;
-//  digitalWrite(LED_BUILTIN, toneDetected);
-
   
-
-  
-//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
-  
-
   // Delay for a little bit
 //  delay(300);
+
+  
 }
