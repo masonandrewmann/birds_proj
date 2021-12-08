@@ -55,7 +55,10 @@ char _printfBuffer[64];
 // Constants
 constexpr int inputPin = A0; // A0 connected to microphone
 constexpr int bufferSize = 256;
-constexpr int samplingRate = 2500; // 5khz
+constexpr int samplingRate = 2500; // 1250 Nyquist
+//sampling rate is mainly so low to have precise frequency resolution on the Goertzel algorithm. bin size = Fs/N = 2500 / 256 = 9.76Hz
+//time resolution is 256 * 2500 = 0.1024ms
+
 //constexpr float targetFreq = 200; // 200hz
 constexpr float threshold = 30;
 
