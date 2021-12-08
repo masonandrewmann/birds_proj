@@ -208,6 +208,29 @@ void cycle(){
 
 }
 
+
+char states[] = {'a','b','c','d','e'};
+float tmatrix[][] = {{1,0,0,0,0},{0,1,0,0,0},{0,0,1,0,0},{0,0,0,1,0},{0,0,0,0,1}};
+int lenStates = 5; //CHANGE THIS MANUALLY IF WE INCREASE THE NUMBER OF NOTES
+
+void markov(char curVal) {
+//  find the current value's index in the states[] array
+  int wantedpos = -1;
+  for (int i=0; i<lenStates; i++) {
+    if (curVal == states[i]) {
+      wantedpos = i;
+      break;
+    }
+  }
+  
+  float curDist[] = {0,0,0,0,0};
+  // put a 1 in the current position so we can multiply this matrix by the probability matrix
+  curDist[wantedpos] = 1;
+  // this number is wrong i think maybe but i wanna do it on paper to figure it out.
+  
+  
+}
+
 //void trainMarkov(){
 //  //Training set to create the transition matrix. It has 3 different sequences.  
 //  char ** trainingSet;
@@ -218,7 +241,7 @@ void cycle(){
 //  //Sequence 0
 //  trainingSet[0][0] = 'a';  
 //  trainingSet[0][1] = 'b';  
-//  trainingSet[0][2] = 'c';  
+//  dtrainingSet[0][2] = 'c';  
 //  trainingSet[0][3] = 'c';  
 //  trainingSet[0][4] = '\0'; 
 //  //Sequence 1
@@ -283,6 +306,7 @@ void setup() {
   pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
+//starts looking for C4
   goertzel.init(261.63);
   delay(1000);
 }
