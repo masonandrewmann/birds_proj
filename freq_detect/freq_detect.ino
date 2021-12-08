@@ -223,15 +223,10 @@ void markov(char curVal) {
     }
   }
   
-  // put a 1 in the current position so we can multiply this matrix by the probability matrix
   float curDist[] = {0,0,0,0,0};
+  // put a 1 in the current position so we can multiply this matrix by the probability matrix
   curDist[wantedpos] = 1;
-
-  
-//  float probMatrix1[][] = {{},{},{},{},{},{}}
-  //multiply matrices now
-  
-
+  // this number is wrong i think maybe but i wanna do it on paper to figure it out.
   
   
 }
@@ -291,6 +286,19 @@ void markov(char curVal) {
 //    Serial.print(probs[i]);
 //    Serial.println();
 //  }
+
+void trigNote(float freq, int atk, int sus, int rel){
+  envTimes[0] = atk;
+  envTimes[1] = sus;
+  envTimes[2] = rel;
+  outFreq = freq;
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  noteActive = true;
+  noteEnd = millis() + envTimes[0] + envTimes[1] + envTimes[2];
+  sectionStart = millis();
+  sectionEnd = sectionStart + envTimes[0];
+  envState = 0;
+}
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);

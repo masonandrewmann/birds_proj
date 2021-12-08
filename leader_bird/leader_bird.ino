@@ -6,7 +6,7 @@
 #define TABLESIZE 50
 #include <MarkovChain.h>
 
-
+#define BUTTON_PIN PD5
 #define printf(fmt, ...) \
   snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
   Serial.print(_printfBuffer);
@@ -209,6 +209,18 @@ void cycle(){
 char states[] = {'a','b','c','d','e'};
 int lenStates = 5; //CHANGE THIS MANUALLY IF WE INCREASE THE NUMBER OF NOTES
 
+void trigNote(float freq, int atk, int sus, int rel){
+  envTimes[0] = atk;
+  envTimes[1] = sus;
+  envTimes[2] = rel;
+  outFreq = freq;
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
+  noteActive = true;
+  noteEnd = millis() + envTimes[0] + envTimes[1] + envTimes[2];
+  sectionStart = millis();
+  sectionEnd = sectionStart + envTimes[0];
+  envState = 0;
+}
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -232,7 +244,7 @@ void setup() {
 //starts looking for C4
   goertzel.init(261.63);
 
-  pinMode(PD5, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
   delay(1000);
 }
 
@@ -319,6 +331,8 @@ void loop() {
   
   // Delay for a little bit
 //  delay(300);
-
+if(!noteActive
+  int pinVal = digitalRead(BUTTON_PIN);
+  if (
   
 }
