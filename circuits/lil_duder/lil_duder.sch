@@ -511,12 +511,12 @@ $EndComp
 $Comp
 L Amplifier_Operational:TL072 U2
 U 2 1 61829A70
-P 4700 6050
-F 0 "U2" H 4700 6300 50  0000 C CNN
-F 1 "TL072" H 4800 6200 50  0000 C CNN
-F 2 "Package_DIP:DIP-8_W7.62mm_Socket" H 4700 6050 50  0001 C CNN
-F 3 "http://www.ti.com/lit/ds/symlink/tl071.pdf" H 4700 6050 50  0001 C CNN
-	2    4700 6050
+P 4900 6050
+F 0 "U2" H 4900 6300 50  0000 C CNN
+F 1 "TL072" H 5000 6200 50  0000 C CNN
+F 2 "Package_DIP:DIP-8_W7.62mm_Socket" H 4900 6050 50  0001 C CNN
+F 3 "http://www.ti.com/lit/ds/symlink/tl071.pdf" H 4900 6050 50  0001 C CNN
+	2    4900 6050
 	1    0    0    1   
 $EndComp
 $Comp
@@ -1172,43 +1172,10 @@ F 3 "" H 2900 3650 50  0001 C CNN
 	1    2900 3650
 	1    0    0    -1  
 $EndComp
-$Comp
-L Device:R_US R15
-U 1 1 618AB20A
-P 4250 5950
-F 0 "R15" V 4045 5950 50  0000 C CNN
-F 1 "10k" V 4136 5950 50  0000 C CNN
-F 2 "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal" V 4290 5940 50  0001 C CNN
-F 3 "~" H 4250 5950 50  0001 C CNN
-	1    4250 5950
-	0    1    1    0   
-$EndComp
-Connection ~ 4100 5950
-$Comp
-L Device:R_US R17
-U 1 1 618AB96A
-P 4700 5700
-F 0 "R17" V 4495 5700 50  0000 C CNN
-F 1 "100k" V 4586 5700 50  0000 C CNN
-F 2 "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal" V 4740 5690 50  0001 C CNN
-F 3 "~" H 4700 5700 50  0001 C CNN
-	1    4700 5700
-	0    1    1    0   
-$EndComp
 Wire Wire Line
-	4550 5700 4400 5700
+	4600 5700 4600 5950
 Wire Wire Line
-	4400 5700 4400 5950
-Connection ~ 4400 5950
-Wire Wire Line
-	4850 5700 5000 5700
-Wire Wire Line
-	5000 5700 5000 6050
-Wire Wire Line
-	4100 5250 5000 5250
-Wire Wire Line
-	5000 5250 5000 5700
-Connection ~ 5000 5700
+	5200 5700 5200 6050
 Wire Wire Line
 	4600 3700 4600 3750
 Wire Wire Line
@@ -1224,8 +1191,6 @@ Wire Wire Line
 	2900 2850 2900 2900
 Wire Wire Line
 	2900 2900 4100 2900
-Wire Wire Line
-	4100 2900 4100 5250
 $Comp
 L Device:R_US R14
 U 1 1 61914B2C
@@ -1294,10 +1259,7 @@ Wire Notes Line
 Wire Wire Line
 	3400 6050 3400 6450
 Wire Wire Line
-	3400 6450 4400 6450
-Wire Wire Line
-	4400 6450 4400 6150
-Connection ~ 3400 6450
+	4600 6450 4600 6150
 Wire Notes Line
 	5300 7050 1950 7050
 Wire Notes Line
@@ -1509,10 +1471,10 @@ F 3 "~" H 2800 1950 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:+5V #PWR?
+L power:+5V #PWR029
 U 1 1 618F4DDC
 P 9750 5600
-F 0 "#PWR?" H 9750 5450 50  0001 C CNN
+F 0 "#PWR029" H 9750 5450 50  0001 C CNN
 F 1 "+5V" H 9765 5773 50  0000 C CNN
 F 2 "" H 9750 5600 50  0001 C CNN
 F 3 "" H 9750 5600 50  0001 C CNN
@@ -1520,4 +1482,20 @@ F 3 "" H 9750 5600 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Connection ~ 9750 5600
+Wire Wire Line
+	4100 2900 4100 5400
+Connection ~ 4100 5400
+Wire Wire Line
+	4600 5700 5200 5700
+$Comp
+L power:Earth #PWR027
+U 1 1 61ABD464
+P 4600 6450
+F 0 "#PWR027" H 4600 6200 50  0001 C CNN
+F 1 "Earth" H 4600 6300 50  0001 C CNN
+F 2 "" H 4600 6450 50  0001 C CNN
+F 3 "~" H 4600 6450 50  0001 C CNN
+	1    4600 6450
+	-1   0    0    -1  
+$EndComp
 $EndSCHEMATC
