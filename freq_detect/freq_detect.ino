@@ -5,6 +5,10 @@
 #define SS_PIN 10 //define chip select pin
 #define TABLESIZE 50
 #include <MarkovChain.h>
+#include <BasicLinearAlgebra.h>
+
+using namespace BLA;
+
 
 #define LED_1 PD5
 #define LED_2 PD6
@@ -15,19 +19,30 @@
   snprintf(_printfBuffer, 64, fmt, ##__VA_ARGS__);\
   Serial.print(_printfBuffer);
   
-MarkovChain chain;
-
+  // initialize possible nums with length 100 and 0s in all inds
+  char possibleNotes[100];
+  
 int SineValues[TABLESIZE]; 
 float pointerInc;
 float pointerVal = 0;
 int outVal;
 
 int outInd = 0;
-float freqs [] = {261.63, 293.66, 329.63, 392.00, 440.00, 523.25};
-//char elements [] = {'a','b','c','d','e','f'};
+float freqs [] = {261.63, 293.66, 329.63, 392.00, 440.00};
 
+char curGlobalNote = 'a';
+// each letter corresponds to a frequency, not the actual note name just placeholders for it to be human readable later.
+char states[] = {'a','b','c','d','e'};
 
-//hiiii
+// important note: each row and each column must sum to 1 
+// AND must not go over 2 points after the decimal. 
+// you are doing sudoku
+Matrix<5,5> tMatrix = {0.2,  0.25,  0.25, 0.1,  0.2,
+                       0.2,  0.1,   0.2,  0.3,  0.2,
+                       0.2,  0.25,  0.25, 0.3,  0,
+                       0.3,  0.4,   0,    0.3,  0,
+                       0.1,  0,     0.3,  0,    0.6};
+
 
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
@@ -216,83 +231,51 @@ void cycle(){
 }
 
 
-char states[] = {'a','b','c','d','e'};
-//float tmatrix[][] = {{1,0,0,0,0},{0,1,0,0,0},{0,0,1,0,0},{0,0,0,1,0},{0,0,0,0,1}};
-int lenStates = 5; //CHANGE THIS MANUALLY IF WE INCREASE THE NUMBER OF NOTES
-
-void markov(char curVal) {
+// markov takes in current value and returns next value. hardcoded with 5 notes as the total number of notes
+// using the algorithm given by Jongware in https://stackoverflow.com/questions/20327958/random-number-with-probabilities
+char markov(char curVal) {
 //  find the current value's index in the states[] array
   int wantedpos = -1;
-  for (int i=0; i<lenStates; i++) {
+  for (int i=0; i<(sizeof(states)/sizeof(states[0])); i++) {
     if (curVal == states[i]) {
       wantedpos = i;
       break;
     }
   }
   
-  float curDist[] = {0,0,0,0,0};
   // put a 1 in the current position so we can multiply this matrix by the probability matrix
-  curDist[wantedpos] = 1;
-  // this number is wrong i think maybe but i wanna do it on paper to figure it out.
+  Matrix<5,1> curDist = {0,0,0,0,0};
+  curDist(wantedpos) = 1;
+
+  Matrix<5,1> outputChances = tMatrix * curDist;
+
+
+  // the rest of this used to be trainMarkov and it is only called within the markov this should work
+  int randInd = random(100);
+    
+  // make an array with all the possible numbers that it could be. length 100
+  int curIndex=0;
+  for (int i=0; i<outputChances.Rows; i++){
+    int currentChance = outputChances(i) * 100;
+
+    char currentState = states[i];
+    
+    for (int j=0; j<currentChance; j++){\
+      // fill possibleNotes with the currentState currentChance number of times
+      possibleNotes[curIndex] = currentState;
+      curIndex++;
+    }
+  }
+  // so now possibleNums should be 100 numbers long with "a","b","c","d","e" tons of times. see which index the randInd falls on.
+  char nextNote = possibleNotes[randInd];
   
-  
+  Serial.print(nextNote);
+  Serial.println();
+
+  return nextNote;  
 }
 
-//void trainMarkov(){
-//  //Training set to create the transition matrix. It has 3 different sequences.  
-//  char ** trainingSet;
-//  trainingSet = (char **) malloc(3*sizeof(char *));
-//  for(int i = 0; i < 3; i++)
-//    trainingSet[i] = (char *) malloc(5*sizeof(char));
-// 
-//  //Sequence 0
-//  trainingSet[0][0] = 'a';  
-//  trainingSet[0][1] = 'b';  
-//  dtrainingSet[0][2] = 'c';  
-//  trainingSet[0][3] = 'c';  
-//  trainingSet[0][4] = '\0'; 
-//  //Sequence 1
-//  trainingSet[1][0] = 'a';  
-//  trainingSet[1][1] = 'a';  
-//  trainingSet[1][2] = 'a';  
-//  trainingSet[1][3] = 'a';  
-//  trainingSet[1][4] = '\0'; 
-//  //Sequence 2
-//  trainingSet[2][0] = 'b';  
-//  trainingSet[2][1] = 'a';  
-//  trainingSet[2][2] = 'b';  
-//  trainingSet[2][3] = 'c';  
-//  trainingSet[2][4] = '\0';  
-//
-//  // The sequences are composed by three elements: a, b and c
-//  char elements[] = {'a', 'b', 'c'};
-//  
-//  //We calculate the probability of a element apearing after 'a'  
-//  double* probs = chain.getNextTransitions('a', elements, 3, trainingSet, 3);
-//  
-//  Serial.println("Probability of appearing after element /'a/'");
-//  for (int i = 0; i < 3; i++){
-//    Serial.print(elements[i]);
-//    Serial.print(probs[i]);
-//    Serial.println();
-//  }
-//  
-//  
-//}
 
-//void nextPitch(){
-//remember we have freqs[] and elements[]
-//  float curPitch = freqs[outInd];
-//  
-//  char curEl = elements[outInd];
-//  Serial.print(curEl);
-//  double* probs = chain.getNextTransitions(curEl, elements, 6, trainingSet, 20);
-//  Serial.println("Probability of appearing after element /'a/'");
-//  for (int i = 0; i < 6; i++){
-//    Serial.print(elements[i] + ": ");
-//    Serial.print(probs[i]);
-//    Serial.println();
-//  }
 
 void trigNote(float freq, int atk, int sus, int rel){
   digitalWrite(LED_1, HIGH);
@@ -320,7 +303,6 @@ void setup() {
   Timer1.initialize(1000000 / samplingRate);
   Timer1.attachInterrupt(analogReadStart);
   Serial.begin(115200);
-//  trainMarkov();
 
     // calculate sine wavetable
   float RadAngle;                           // Angle in Radians
@@ -343,31 +325,10 @@ void loop() {
     int_guard guard {};
     goertzel.from(adcBuffer);
   }
-  
-  // try to detect some frequencies
-//  // C4
-//  goertzel.updateFreq(freqs[0]); //261.63
-//  mags[0] = (goertzel.processAll() * 10);
-//  // D4
-//  goertzel.updateFreq(freqs[1]); //293.66
-//  mags[1] = (goertzel.processAll() * 10);
-//  // E4
-//  goertzel.updateFreq(freqs[2]); //329.63
-//  mags[2] = (goertzel.processAll() * 10);
-//  // G4
-//  goertzel.updateFreq(freqs[3]); //392.00
-//  mags[3] = (goertzel.processAll() * 10);
-//  // A4
-//  goertzel.updateFreq(freqs[4]); //440.00
-//  mags[4] = (goertzel.processAll(freqs[5]) * 10);
-//  // C5
-//  goertzel.updateFreq(freqs[5]); //523.25
-//  mags[5] = (goertzel.processAll() * 10);
-  
 
   //determine maximum magnitudes over listening period
   if (listening){
-  for (int i = 0; i < 6; i++){
+  for (int i = 0; i < (sizeof(freqs) / sizeof(freqs[0])); i++){
     goertzel.updateFreq(freqs[i]);
      mags[i] = (goertzel.processAll() * 10);
     if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
@@ -403,19 +364,31 @@ void loop() {
     //if max value is above a threshold, play a note
     if (maxVal > 4000){
 //      chosenFreq = freqs[maxInd] * 1.0595; //one semitone up from played note
-      chosenFreq = freqs[(maxInd+1)%((sizeof(magsMax) / sizeof(magsMax[0])))];
+
+      nextNote = markov(curGlobalNote);
+      curGlobalNote = nextNote;
+      int curNoteInd;
+      for (int i=0; i<(sizeof(states)/sizeof(states[0])); i++) {
+        if (curGlobalNote == states[i]) {
+          curNoteInd = i;
+          break;
+        }
+      }
+      chosenFreq = freqs[curNoteInd];
+      
+//      chosenFreq = freqs[(maxInd+1)%((sizeof(magsMax) / sizeof(magsMax[0])))];
       trigNote(chosenFreq, 500, 1000, 500);
       listening = false;
       listenCount = 0;
     } else if(listenCount > 3){
-      //play random note if it hasnt sang in a while
-      byte randInd = random((sizeof(magsMax) / sizeof(magsMax[0])));
-      trigNote(freqs[randInd], 500, 1000, 500);
-      listenCount = 0;
-      listening = false;
+//      //play random note if it hasnt sang in a while
+//      byte randInd = random((sizeof(magsMax) / sizeof(magsMax[0])));
+//      trigNote(freqs[randInd], 500, 1000, 500);
+//      listenCount = 0;
+//      listening = false;
     }
     else {
-      //don'tt play a note
+      //don't play a note
       listenTimer += listenLength;
       listenCount++;
       listening = true;

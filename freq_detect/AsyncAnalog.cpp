@@ -75,5 +75,3 @@ int analogReadGetValue()
   // combine the two bytes
   return (high << 8) | low;
 }
-
-

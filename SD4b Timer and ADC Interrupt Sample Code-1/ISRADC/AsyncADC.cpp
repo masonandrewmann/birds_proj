@@ -1,4 +1,4 @@
-// Analog IO
+m// Analog IO
 
 #include "wiring_private.h"
 #include "pins_arduino.h"
@@ -75,5 +75,3 @@ int analogReadGetValue()
   // combine the two bytes
   return (high << 8) | low;
 }
-
-
