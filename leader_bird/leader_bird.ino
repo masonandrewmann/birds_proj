@@ -22,9 +22,12 @@ float pointerVal = 0;
 int outVal;
 
 int outInd = 0;
+//float freqs [][] = {{261.63, 293.66, 329.63, 392.00, 440.00, 523.25},
+//                  {329.63, 369.99, 392.00, 493.88, 523.25},
+//                  {207.65, 261.63, 311.13, 349.23, 369.99},
+//                  {466.16, 523.25, 587.33, 698.46, 783.99}};
 float freqs [] = {261.63, 293.66, 329.63, 392.00, 440.00, 523.25};
-float leaderFreqs[] = {};
-//char elements [] = {'a','b','c','d','e','f'};
+float leaderFreq = 1108.73;
 
 
 
@@ -347,7 +350,7 @@ void loop() {
 if(!noteActive){
   int pinVal = digitalRead(BUTTON_PIN);
   if (pinVal == HIGH){
-    trigNote(1000, 500, 2000, 500);
+    trigNote(leaderFreq, 500, 2000, 500);
   } 
 }
 }

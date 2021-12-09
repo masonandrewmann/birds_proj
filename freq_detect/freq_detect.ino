@@ -28,7 +28,16 @@ float pointerVal = 0;
 int outVal;
 
 int outInd = 0;
-float freqs [] = {261.63, 293.66, 329.63, 392.00, 440.00};
+int curSection = 0;
+float freqs [4][5] = {{261.63, 293.66, 329.63, 392.00, 440.00},
+                  {329.63, 369.99, 392.00, 493.88, 523.25},
+                  {207.65, 261.63, 311.13, 349.23, 369.99},
+                  {466.16, 523.25, 587.33, 698.46, 783.99}};
+float leaderFreq = 1108.73;
+
+// defining the possible current frequencies with curSection - curSection must be updated every time it hears the leader freq
+float curFreqs [5];
+float curFreqsPlusLeader[6];
 
 char curGlobalNote = 'a';
 // each letter corresponds to a frequency, not the actual note name just placeholders for it to be human readable later.
@@ -73,7 +82,7 @@ boolean listening = true;
 unsigned long listenTimer = 2000;
 int listenLength = 2000;
 byte listenCount = 0;
-float outFreq = 100;
+float outFreq = 100.00;
 
 
 char _printfBuffer[64]; 
@@ -229,7 +238,7 @@ void densityOfNotes(){
 GoertzelBuffer<> goertzel {};
 
 void cycle(){
-  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
+  pointerInc = TABLESIZE * (curFreqs[outInd] / samplingRate);
   //grab sample from wavetable
   outVal = SineValues[(int)pointerVal];
 
@@ -323,7 +332,12 @@ void trigNote(float freq, int atk, int sus, int rel){
   envState = 0;
 }
 
-
+void changeSectionFromLeader(){
+  curSection = (curSection + 1) % 4;
+  for (int i=0; i<(sizeof(curFreqs)/sizeof(curFreqs[0])); i++){
+    curFreqs[i] = freqs[curSection][i];
+  }
+}
 
 
 void setup() {
@@ -339,6 +353,17 @@ void setup() {
   Timer1.attachInterrupt(analogReadStart);
   Serial.begin(115200);
 
+
+for (int i=0; i<6; i++){
+  if (i<5){
+    curFreqs[i] = freqs[curSection][i];
+    curFreqsPlusLeader[i] = curFreqs[i];
+  }
+  else{
+    curFreqsPlusLeader[i] = leaderFreq;
+  }
+}
+
     // calculate sine wavetable
   float RadAngle;                           // Angle in Radians
   for(int MyAngle=0;MyAngle<TABLESIZE;MyAngle++) {
@@ -346,7 +371,7 @@ void setup() {
     SineValues[MyAngle]=(sin(RadAngle)*127)+128;  // get the sine of this angle and 'shift' to center around the middle of output voltage range
   }
 
-  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
+  pointerInc = TABLESIZE * (curFreqs[outInd] / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
 //starts looking for C4
@@ -362,10 +387,15 @@ void loop() {
 
   //determine maximum magnitudes over listening period
   if (listening){
-    for (int i = 0; i < (sizeof(freqs) / sizeof(freqs[0])); i++){
-      goertzel.updateFreq(freqs[i]);
+    for (int i = 0; i < (sizeof(curFreqsPlusLeader) / sizeof(curFreqsPlusLeader[0])); i++){
+      goertzel.updateFreq(curFreqsPlusLeader[i]);
       mags[i] = (goertzel.processAll() * 10);
       if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
+      if (i==6){
+        if (mags[i] > 0){
+          changeSectionFromLeader();
+        }
+      }
     }
   }
   //print out magnitudes of all frequencies tested
@@ -383,7 +413,7 @@ void loop() {
 //  Serial.println(mags[5]);
 
 
-  //determine what note to play
+  //determine what note to play  
   if( millis() > listenTimer && !noteActive){
     float chosenFreq = 0;
     //find max value of array and its corresponding frequency index
@@ -407,7 +437,7 @@ void loop() {
           break;
         }
       }
-      chosenFreq = freqs[curNoteInd];
+      chosenFreq = curFreqs[curNoteInd];
 
       //create the right asr values
       densityOfNotes();
