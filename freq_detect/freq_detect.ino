@@ -34,6 +34,7 @@ float freqs [4][5] = {{261.63, 293.66, 329.63, 392.00, 440.00},
                   {207.65, 261.63, 311.13, 349.23, 369.99},
                   {466.16, 523.25, 587.33, 698.46, 783.99}};
 float leaderFreq = 1108.73;
+float leaderMag = 0;
 
 // defining the possible current frequencies with curSection - curSection must be updated every time it hears the leader freq
 float curFreqs [5];
@@ -58,7 +59,6 @@ float attackGlobal = 500;
 float sustainGlobal = 1000;
 float releaseGlobal = 500;
 
-
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
 
@@ -73,6 +73,7 @@ unsigned long noteEnd = 0;
 byte envState = 0; // 0 for attack, 1 for sustain, 2 for release, 3 for inactive
 unsigned long sectionStart = 0;
 unsigned long sectionEnd = 0;
+float maxVal;
 
 //note clock
 unsigned long nextNote = 0;
@@ -80,10 +81,14 @@ unsigned long nextNote = 0;
 //note control
 boolean listening = true;
 unsigned long listenTimer = 2000;
-int listenLength = 2000;
+unsigned long listenTimer2 = 2000;
+
+unsigned long listenLength = 2000;
 byte listenCount = 0;
 float outFreq = 100.00;
 
+boolean leaderTimeout = false;
+unsigned long leaderTimer = 10000;
 
 char _printfBuffer[64]; 
 
@@ -143,6 +148,7 @@ struct GoertzelBuffer {
   }
 
   void init(FLOATING targetFreq) {
+    Serial.print(targetFreq);
     int k;
     FLOATING floatN;
     FLOATING omega;
@@ -205,6 +211,7 @@ struct GoertzelBuffer {
     return sqrt(mag2);
   }
 };
+GoertzelBuffer<> goertzel {};
 
 // takes in magnitudes from magsMax which is a global variable and returns a, s, and r values
 void densityOfNotes(){
@@ -235,7 +242,6 @@ void densityOfNotes(){
   }
 }
 
-GoertzelBuffer<> goertzel {};
 
 void cycle(){
   pointerInc = TABLESIZE * (curFreqs[outInd] / samplingRate);
@@ -261,9 +267,18 @@ void cycle(){
       envVal = 1 + (float)(millis() - sectionStart) * (-1) / (float)(sectionEnd - sectionStart);
     break;
     case 3: //end the note
+    envVal = 0;
       noteActive = 0;
       listening = true;
+      listenTimer = millis() + listenLength;
       digitalWrite(LED_1, LOW);
+      for (int i=0; i<(sizeof(mags)/sizeof(mags[0])); i++){
+        mags[i] = 0;
+        magsMax[i] = 0;
+      }
+      maxVal = 0;
+      delay(750);
+      
     break;
   }
   //multiply by envelope value
@@ -319,6 +334,14 @@ char markov(char curVal) {
 
 
 void trigNote(float freq, int atk, int sus, int rel){
+  Serial.print("playing a note: ");
+  Serial.print(freq);
+  Serial.println();
+    for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
+      magsMax[i] = 0;
+      mags[i] = 0;
+    }
+    maxVal = 0;
   digitalWrite(LED_1, HIGH);
   envTimes[0] = atk;
   envTimes[1] = sus;
@@ -337,6 +360,8 @@ void changeSectionFromLeader(){
   for (int i=0; i<(sizeof(curFreqs)/sizeof(curFreqs[0])); i++){
     curFreqs[i] = freqs[curSection][i];
   }
+  Serial.print("i heard the leader");
+  Serial.println();
 }
 
 
@@ -347,22 +372,23 @@ void setup() {
   pinMode(LED_2, OUTPUT);
   pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_4, OUTPUT);
+  digitalWrite(LED_2,HIGH);
   
   analogReadSetup(inputPin);
   Timer1.initialize(1000000 / samplingRate);
   Timer1.attachInterrupt(analogReadStart);
   Serial.begin(115200);
 
-
-for (int i=0; i<6; i++){
-  if (i<5){
-    curFreqs[i] = freqs[curSection][i];
-    curFreqsPlusLeader[i] = curFreqs[i];
+  
+  for (int i=0; i<6; i++){
+    if (i<5){
+      curFreqs[i] = freqs[curSection][i];
+      curFreqsPlusLeader[i] = curFreqs[i];
+    }
+    else{
+      curFreqsPlusLeader[i] = leaderFreq;
+    }
   }
-  else{
-    curFreqsPlusLeader[i] = leaderFreq;
-  }
-}
 
     // calculate sine wavetable
   float RadAngle;                           // Angle in Radians
@@ -374,6 +400,10 @@ for (int i=0; i<6; i++){
   pointerInc = TABLESIZE * (curFreqs[outInd] / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
+
+  trigNote(100,500,1000,500);
+
+  
 //starts looking for C4
   goertzel.init(261.63);
   delay(1000);
@@ -385,39 +415,62 @@ void loop() {
     goertzel.from(adcBuffer);
   }
 
+  Serial.print(listening);
+  Serial.println();
+  
+      goertzel.updateFreq(curFreqsPlusLeader[5]);
+      leaderMag = (goertzel.processAll() * 10);
+        if (leaderMag > 2000 && millis() > leaderTimer){
+          changeSectionFromLeader();
+          leaderTimer = millis() + 10000;
+        }
+  
   //determine maximum magnitudes over listening period
   if (listening){
     for (int i = 0; i < (sizeof(curFreqsPlusLeader) / sizeof(curFreqsPlusLeader[0])); i++){
       goertzel.updateFreq(curFreqsPlusLeader[i]);
       mags[i] = (goertzel.processAll() * 10);
-      if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
-      if (i==6){
-        if (mags[i] > 0){
-          changeSectionFromLeader();
-        }
+      if (mags[i] > magsMax[i]) {
+        magsMax[i] = mags[i];
       }
     }
   }
   //print out magnitudes of all frequencies tested
 //  Serial.print("C4: ");
-//  Serial.print(mags[0]);
+//  Serial.print(magsMax[0]);
 //  Serial.print(" D4: ");
-//  Serial.print(mags[1]);
+//  Serial.print(magsMax[1]);
 //  Serial.print(" E4: ");
-//  Serial.print(mags[2]);
+//  Serial.print(magsMax[2]);
 //  Serial.print(" G4: ");
-//  Serial.print(mags[3]);
+//  Serial.print(magsMax[3]);
 //  Serial.print(" A4: ");
-//  Serial.print(mags[4]);
+//  Serial.print(magsMax[4]);
 //  Serial.print(" C5: ");
-//  Serial.println(mags[5]);
+//  Serial.println(magsMax[5]);
+  
 
 
   //determine what note to play  
-  if( millis() > listenTimer && !noteActive){
+//  Serial.println(listenTimer);
+//  Serial.println(millis());
+  
+  if( millis() > (listenTimer) && !noteActive){
+      Serial.print("C4: ");
+  Serial.print(magsMax[0]);
+  Serial.print(" D4: ");
+  Serial.print(magsMax[1]);
+  Serial.print(" E4: ");
+  Serial.print(magsMax[2]);
+  Serial.print(" G4: ");
+  Serial.print(magsMax[3]);
+  Serial.print(" A4: ");
+  Serial.print(magsMax[4]);
+  Serial.print(" C5: ");
+  Serial.println(magsMax[5]);
     float chosenFreq = 0;
     //find max value of array and its corresponding frequency index
-    float maxVal = magsMax[0];
+    maxVal = magsMax[0];
     byte maxInd = 0;
     for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
       if (magsMax[i] > maxVal){
@@ -427,6 +480,7 @@ void loop() {
     }
     //if max value is above a threshold, play a note
     if (maxVal > 4000){
+      Serial.println(maxVal);
       nextNote = markov(curGlobalNote);
       curGlobalNote = nextNote;
       // decide what index of the frequency values array the letter corresponds to
@@ -440,16 +494,11 @@ void loop() {
       chosenFreq = curFreqs[curNoteInd];
 
       //create the right asr values
-      densityOfNotes();
-      trigNote(chosenFreq, attackGlobal, sustainGlobal, releaseGlobal);
+//      densityOfNotes();
+//      trigNote(chosenFreq, attackGlobal, sustainGlobal, releaseGlobal);
+      trigNote(chosenFreq, 500, 500, 500);
       listening = false;
       listenCount = 0;
-    } else if(listenCount > 3){
-//      //play random note if it hasnt sang in a while
-//      byte randInd = random((sizeof(magsMax) / sizeof(magsMax[0])));
-//      trigNote(freqs[randInd], 500, 1000, 500);
-//      listenCount = 0;
-//      listening = false;
     }
     else {
       //don't play a note
@@ -459,18 +508,8 @@ void loop() {
     }
     for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
       magsMax[i] = 0;
+      mags[i] = 0;
     }
+    maxVal = 0;
   }
-
- 
-
-//  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
-
-//  once the tone is detected, play the next tone.
- 
-
-  
-
-  
-//  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
 }
