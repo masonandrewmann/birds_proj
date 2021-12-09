@@ -3,12 +3,12 @@
 #include <SPI.h>
 #include <DAC_MCP49xx.h>
 #define SS_PIN 10 //define chip select pin
-#define TABLESIZE 50
+#define TABLESIZE 512
 #include <MarkovChain.h>
 
-#define LED_1 PD5
+#define LED_1 PD7
 #define LED_2 PD6
-#define BUTTON_PIN PD7
+#define BUTTON_PIN PD5
 #define LED_4 PB0
 
 #define printf(fmt, ...) \
@@ -55,15 +55,15 @@ boolean listening = true;
 unsigned long listenTimer = 2000;
 int listenLength = 2000;
 byte listenCount = 0;
-float outFreq = 400;
+float outFreq = 1108.73;
 
 
 char _printfBuffer[64]; 
 
 // Constants
 constexpr int inputPin = A0; // A0 connected to microphone
-constexpr int bufferSize = 256;
-constexpr int samplingRate = 2500; // 5khz
+//constexpr int bufferSize = 256;
+constexpr int samplingRate = 10000; // 5khz
 //constexpr float targetFreq = 200; // 200hz
 constexpr float threshold = 30;
 
@@ -80,19 +80,19 @@ float magsMax[6] = {0, 0, 0, 0, 0, 0};
 float pitches[6];
 
 unsigned int writePtr = 0;
-uint16_t adcBuffer[bufferSize];
+//uint16_t adcBuffer[bufferSize];
 
 ISR(ADC_vect) {
   //read from microphone
-  adcBuffer[writePtr] = analogReadGetValue();
-  writePtr = (writePtr + 1) % bufferSize;
+//  adcBuffer[writePtr] = analogReadGetValue();
+//  writePtr = (writePtr + 1) % bufferSize;
   //output to speaker
-  if (noteActive){
+//  if (noteActive){
     cycle();
     dac.output(outVal);
-  } else {
-    dac.output(0);
-  } 
+//  } else {
+//    dac.output(0);
+//  } 
 }
 
 // Just so part of our program doesn't get interruptted
@@ -102,113 +102,113 @@ struct int_guard {
 };
 
 // Group everything here
-template<typename FLOATING = float, typename SAMPLE = uint16_t>
-struct GoertzelBuffer {
-  SAMPLE currentSamples[bufferSize];
-  FLOATING coeff, Q1, Q2, sine, cosine;
-
-  void from(SAMPLE buffer[bufferSize], int startIndex = 0) {
-    memcpy(currentSamples, buffer + startIndex, sizeof(SAMPLE) * (bufferSize - startIndex));
-    memcpy(currentSamples + startIndex, buffer, sizeof(SAMPLE) * startIndex);
-  }
-
-  void init(FLOATING targetFreq) {
-    int k;
-    FLOATING floatN;
-    FLOATING omega;
-
-    floatN = (FLOATING) bufferSize;
-    k = (int) (0.5 + ((floatN * targetFreq) / samplingRate));
-    omega = (2.0 * PI * k) / floatN;
-    sine = sin(omega);
-    cosine = cos(omega);
-    coeff = 2.0 * cosine;
-  }
-
-
-  void ProcessSample(SAMPLE sample) {
-    FLOATING Q0;
-    Q0 = coeff * Q1 - Q2 + (FLOATING) sample;
-    Q2 = Q1;
-    Q1 = Q0;
-  }
-
-  void updateFreq(FLOATING newFreq){
-    int k;
-    FLOATING floatN;
-    FLOATING omega;
-
-    floatN = (FLOATING) bufferSize;
-    k = (int) (0.5 + ((floatN * newFreq) / samplingRate));
-    omega = (2.0 * PI * k) / floatN;
-    sine = sin(omega);
-    cosine = cos(omega);
-    coeff = 2.0 * cosine;
-  }
-
-  /* Basic Goertzel */
-  /* Call this routine after every block to get the complex result. */
-  void GetRealImag(FLOATING *realPart, FLOATING * imagPart) {
-    *realPart = (Q1 - Q2 * cosine);
-    *imagPart = (Q2 * sine);
-  }
-
-  /* Optimized Goertzel */
-  /* Call this after every block to get the RELATIVE magnitude squared. */
-  FLOATING GetMagnitudeSquared(void) {
-    FLOATING result;
-
-    result = Q1 * Q1 + Q2 * Q2 - Q1 * Q2 * coeff;
-    return result;
-  }
-
-  void ResetGoertzel(void) {
-    Q2 = 0;
-    Q1 = 0;
-  }
-
-  float processAll() {
-    ResetGoertzel();
-    for (const auto& sample : currentSamples) {
-      ProcessSample(sample);
-    }
-    auto mag2 = GetMagnitudeSquared();
-    return sqrt(mag2);
-  }
-};
-
-GoertzelBuffer<> goertzel {};
+//template<typename FLOATING = float, typename SAMPLE = uint16_t>
+//struct GoertzelBuffer {
+//  SAMPLE currentSamples[bufferSize];
+//  FLOATING coeff, Q1, Q2, sine, cosine;
+//
+//  void from(SAMPLE buffer[bufferSize], int startIndex = 0) {
+//    memcpy(currentSamples, buffer + startIndex, sizeof(SAMPLE) * (bufferSize - startIndex));
+//    memcpy(currentSamples + startIndex, buffer, sizeof(SAMPLE) * startIndex);
+//  }
+//
+//  void init(FLOATING targetFreq) {
+//    int k;
+//    FLOATING floatN;
+//    FLOATING omega;
+//
+//    floatN = (FLOATING) bufferSize;
+//    k = (int) (0.5 + ((floatN * targetFreq) / samplingRate));
+//    omega = (2.0 * PI * k) / floatN;
+//    sine = sin(omega);
+//    cosine = cos(omega);
+//    coeff = 2.0 * cosine;
+//  }
+//
+//
+//  void ProcessSample(SAMPLE sample) {
+//    FLOATING Q0;
+//    Q0 = coeff * Q1 - Q2 + (FLOATING) sample;
+//    Q2 = Q1;
+//    Q1 = Q0;
+//  }
+//
+//  void updateFreq(FLOATING newFreq){
+//    int k;
+//    FLOATING floatN;
+//    FLOATING omega;
+//
+//    floatN = (FLOATING) bufferSize;
+//    k = (int) (0.5 + ((floatN * newFreq) / samplingRate));
+//    omega = (2.0 * PI * k) / floatN;
+//    sine = sin(omega);
+//    cosine = cos(omega);
+//    coeff = 2.0 * cosine;
+//  }
+//
+//  /* Basic Goertzel */
+//  /* Call this routine after every block to get the complex result. */
+//  void GetRealImag(FLOATING *realPart, FLOATING * imagPart) {
+//    *realPart = (Q1 - Q2 * cosine);
+//    *imagPart = (Q2 * sine);
+//  }
+//
+//  /* Optimized Goertzel */
+//  /* Call this after every block to get the RELATIVE magnitude squared. */
+//  FLOATING GetMagnitudeSquared(void) {
+//    FLOATING result;
+//
+//    result = Q1 * Q1 + Q2 * Q2 - Q1 * Q2 * coeff;
+//    return result;
+//  }
+//
+//  void ResetGoertzel(void) {
+//    Q2 = 0;
+//    Q1 = 0;
+//  }
+//
+//  float processAll() {
+//    ResetGoertzel();
+//    for (const auto& sample : currentSamples) {
+//      ProcessSample(sample);
+//    }
+//    auto mag2 = GetMagnitudeSquared();
+//    return sqrt(mag2);
+//  }
+//};
+//
+//GoertzelBuffer<> goertzel {};
 
 void cycle(){
-  pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
   //grab sample from wavetable
   outVal = SineValues[(int)pointerVal];
 
-  //check envelope state
-  if (millis() > sectionEnd) {
-    envState++;
-    sectionStart = millis();
-    sectionEnd = sectionStart + envTimes[envState];
-  }
-  //determine envelope value
-  switch (envState){
-    case 0: //attack
-      envVal = (float)(millis() - sectionStart)  / (float)(sectionEnd - sectionStart);
-    break;
-    case 1: //sustain
-      envVal = 1;
-    break;
-
-    case 2: //release
-      envVal = 1 + (float)(millis() - sectionStart) * (-1) / (float)(sectionEnd - sectionStart);
-    break;
-    case 3: //end the note
-      noteActive = 0;
-      listening = true;
-      digitalWrite(LED_1, LOW);
-    break;
-  }
-  //multiply by envelope value
+//  //check envelope state
+//  if (millis() > sectionEnd) {
+//    envState++;
+//    sectionStart = millis();
+//    sectionEnd = sectionStart + envTimes[envState];
+//  }
+//  //determine envelope value
+//  switch (envState){
+//    case 0: //attack
+//      envVal = (float)(millis() - sectionStart)  / (float)(sectionEnd - sectionStart);
+//    break;
+//    case 1: //sustain
+//      envVal = 1;
+//    break;
+//
+//    case 2: //release
+//      envVal = 1 + (float)(millis() - sectionStart) * (-1) / (float)(sectionEnd - sectionStart);
+//    break;
+//    case 3: //end the note
+//      noteActive = 0;
+//      listening = true;
+//      digitalWrite(LED_1, LOW);
+//    break;
+//  }
+//  //multiply by envelope value
   outVal *= envVal;
   //increment wavetable pointer
   pointerVal += pointerInc;
@@ -240,6 +240,7 @@ void setup() {
   pinMode(LED_2, OUTPUT);
   pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_4, OUTPUT);
+  digitalWrite(LED_2, HIGH);
   
   analogReadSetup(inputPin);
   Timer1.initialize(1000000 / samplingRate);
@@ -250,7 +251,7 @@ void setup() {
     // calculate sine wavetable
   float RadAngle;                           // Angle in Radians
   for(int MyAngle=0;MyAngle<TABLESIZE;MyAngle++) {
-    RadAngle=MyAngle*(2*PI)/TABLESIZE;               // angle converted to radians
+    RadAngle= MyAngle*(2*PI)/TABLESIZE;               // angle converted to radians
     SineValues[MyAngle]=(sin(RadAngle)*127)+128;  // get the sine of this angle and 'shift' to center around the middle of output voltage range
   }
 
@@ -259,7 +260,7 @@ void setup() {
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
 //starts looking for C4
-  goertzel.init(261.63);
+//  goertzel.init(261.63);
 
   delay(1000);
 }
@@ -267,7 +268,7 @@ void setup() {
 void loop() {
   {
     int_guard guard {};
-    goertzel.from(adcBuffer);
+//    goertzel.from(adcBuffer);
   }
  
   //determine maximum magnitudes over listening period
@@ -347,10 +348,11 @@ void loop() {
   
   // Delay for a little bit
 //  delay(300);
-if(!noteActive){
   int pinVal = digitalRead(BUTTON_PIN);
-  if (pinVal == HIGH){
-    trigNote(leaderFreq, 500, 2000, 500);
-  } 
-}
+  if (pinVal == LOW){
+      envVal = 1;
+  } else {
+    envVal = 0;
+  }
+//    trigNote(leaderFreq, 500, 2000, 500);
 }
