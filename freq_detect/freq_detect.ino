@@ -44,6 +44,12 @@ Matrix<5,5> tMatrix = {0.2,  0.25,  0.25, 0.1,  0.2,
                        0.1,  0,     0.3,  0,    0.6};
 
 
+// attack, sustain, and release global variables that can be changed based on how loud things are around it. setting defaults here
+float attackGlobal = 500;
+float sustainGlobal = 1000;
+float releaseGlobal = 500;
+
+
 //Set up the DAC
 DAC_MCP49xx dac(DAC_MCP49xx::MCP4901, SS_PIN);
 
@@ -140,7 +146,6 @@ struct GoertzelBuffer {
     coeff = 2.0 * cosine;
   }
 
-
   void ProcessSample(SAMPLE sample) {
     FLOATING Q0;
     Q0 = coeff * Q1 - Q2 + (FLOATING) sample;
@@ -191,6 +196,35 @@ struct GoertzelBuffer {
     return sqrt(mag2);
   }
 };
+
+// takes in magnitudes from magsMax which is a global variable and returns a, s, and r values
+void densityOfNotes(){
+  float totalLoud = 0;
+  for(int i=0; i<(sizeof(magsMax)/sizeof(magsMax[0])); i++){
+    totalLoud = totalLoud + magsMax[i];
+  }
+  // the higher the totalLoud, the smaller the a, s, and r values are. maybe
+  // we are assuming 4000 is a medium loud sound.
+
+  // default attack: 500
+  // default sustain: 1000
+  // default release: 500
+  // if it gets 4000 the default should have a multiplier of 1
+  
+  float mediumLoud = 4000; 
+
+  // maps to -500x/(1.5 * 4000) + 1000 so it crosses 0 at 12000. hopefully totalLoud doesnt get that loud.
+  if (totalLoud < 11000){
+      attackGlobal = 500 * (-1)* totalLoud / (mediumLoud * 1.5) + 1000;
+  sustainGlobal = 1000* (-1) * totalLoud/(mediumLoud) + 1500;
+  releaseGlobal = 500 * (-1)* totalLoud / (mediumLoud * 1.5) + 1000;
+  }
+  else{
+    attackGlobal = 83;
+    sustainGlobal = 166;
+    releaseGlobal = 83;
+  }
+}
 
 GoertzelBuffer<> goertzel {};
 
@@ -249,7 +283,6 @@ char markov(char curVal) {
 
   Matrix<5,1> outputChances = tMatrix * curDist;
 
-
   // the rest of this used to be trainMarkov and it is only called within the markov this should work
   int randInd = random(100);
     
@@ -276,7 +309,6 @@ char markov(char curVal) {
 }
 
 
-
 void trigNote(float freq, int atk, int sus, int rel){
   digitalWrite(LED_1, HIGH);
   envTimes[0] = atk;
@@ -290,6 +322,9 @@ void trigNote(float freq, int atk, int sus, int rel){
   sectionEnd = sectionStart + envTimes[0];
   envState = 0;
 }
+
+
+
 
 void setup() {
   //initialize GPIO pins
@@ -311,7 +346,6 @@ void setup() {
     SineValues[MyAngle]=(sin(RadAngle)*127)+128;  // get the sine of this angle and 'shift' to center around the middle of output voltage range
   }
 
-  //
   pointerInc = TABLESIZE * (freqs[outInd] / samplingRate);
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
@@ -328,11 +362,11 @@ void loop() {
 
   //determine maximum magnitudes over listening period
   if (listening){
-  for (int i = 0; i < (sizeof(freqs) / sizeof(freqs[0])); i++){
-    goertzel.updateFreq(freqs[i]);
-     mags[i] = (goertzel.processAll() * 10);
-    if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
-  }
+    for (int i = 0; i < (sizeof(freqs) / sizeof(freqs[0])); i++){
+      goertzel.updateFreq(freqs[i]);
+      mags[i] = (goertzel.processAll() * 10);
+      if (mags[i] > magsMax[i]) magsMax[i] = mags[i];
+    }
   }
   //print out magnitudes of all frequencies tested
 //  Serial.print("C4: ");
@@ -363,10 +397,9 @@ void loop() {
     }
     //if max value is above a threshold, play a note
     if (maxVal > 4000){
-//      chosenFreq = freqs[maxInd] * 1.0595; //one semitone up from played note
-
       nextNote = markov(curGlobalNote);
       curGlobalNote = nextNote;
+      // decide what index of the frequency values array the letter corresponds to
       int curNoteInd;
       for (int i=0; i<(sizeof(states)/sizeof(states[0])); i++) {
         if (curGlobalNote == states[i]) {
@@ -375,9 +408,10 @@ void loop() {
         }
       }
       chosenFreq = freqs[curNoteInd];
-      
-//      chosenFreq = freqs[(maxInd+1)%((sizeof(magsMax) / sizeof(magsMax[0])))];
-      trigNote(chosenFreq, 500, 1000, 500);
+
+      //create the right asr values
+      densityOfNotes();
+      trigNote(chosenFreq, attackGlobal, sustainGlobal, releaseGlobal);
       listening = false;
       listenCount = 0;
     } else if(listenCount > 3){
@@ -396,32 +430,17 @@ void loop() {
     for (int i = 0; i < (sizeof(magsMax) / sizeof(magsMax[0])); i++) {
       magsMax[i] = 0;
     }
-    
   }
 
  
-//  if (millis() > nextNote){
-//    trigNote(200, 10, 50, 50);
-//    nextNote = millis() + 3500;
-//  }
-//  bool toneDetected = magnitude > threshold;
 
 //  printf("C4: %d, D4: %d, E4: %d, G4: %d, A4: %d, C5: %d\n", (int)(mags[0] * 100), (int)(mags[1] * 100), (int)(mags[2] * 100), (int)(mags[3] * 100), (int)(mags[4] * 100), (int)(mags[5] * 100)); 
 
 //  once the tone is detected, play the next tone.
-  
-  //nextPitch();
  
-// SWITCH DEPENDING ON THE BIRD
-//  bool toneDetected = mags[0] > threshold;
-//  digitalWrite(LED_BUILTIN, toneDetected);
 
   
 
   
 //  printf("M=%03d |%c|%s>\n", (int)(magnitude), toneDetected ? '*' : ' ', bar);
-  
-
-  // Delay for a little bit
-//  delay(300);
 }
