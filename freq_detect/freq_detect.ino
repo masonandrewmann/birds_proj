@@ -213,38 +213,52 @@ struct GoertzelBuffer {
 };
 GoertzelBuffer<> goertzel {};
 
-// takes in magnitudes from magsMax which is a global variable and returns a, s, and r values
-void densityOfNotes(){
+// takes in magnitudes from magsMax which is a global variable and returns A MULTIPLIER FOR THE DEFAULT //////a, s, and r values
+float densityOfNotes(float mags4density[]){
   float totalLoud = 0;
-  for(int i=0; i<(sizeof(magsMax)/sizeof(magsMax[0])); i++){
-    totalLoud = totalLoud + magsMax[i];
+//  for(int i=0; i<(sizeof(mags4density)/sizeof(mags4density[0])); i++){
+  for (int i=0; i<5; i++){
+    totalLoud = totalLoud + mags4density[i];
   }
+  Serial.print("total loud: ");
+  Serial.print(totalLoud);
+  Serial.println();
   // the higher the totalLoud, the smaller the a, s, and r values are. maybe
-  // we are assuming 4000 is a medium loud sound.
+  // we are assuming 10000 is a medium loud sound.
 
   // default attack: 500
   // default sustain: 1000
   // default release: 500
   // if it gets 4000 the default should have a multiplier of 1
   
-  float mediumLoud = 4000; 
-
+  float mediumLoud = 10000; 
+  float outputMultiplier;
+  
+  
   // maps to -500x/(1.5 * 4000) + 1000 so it crosses 0 at 12000. hopefully totalLoud doesnt get that loud.
-  if (totalLoud < 11000){
-      attackGlobal = 500 * (-1)* totalLoud / (mediumLoud * 1.5) + 1000;
-  sustainGlobal = 1000* (-1) * totalLoud/(mediumLoud) + 1500;
-  releaseGlobal = 500 * (-1)* totalLoud / (mediumLoud * 1.5) + 1000;
+  if (totalLoud < 18900){
+    outputMultiplier = ((-1) * totalLoud/mediumLoud) + 2;
+    Serial.print("output multiplier: ");
+    Serial.print(outputMultiplier);
+    Serial.println();
+    
+//    
+//    attackGlobal = 500 * (-1)* totalLoud / (mediumLoud * 1.5) + 1000;
+//    sustainGlobal = 1000* (-1) * totalLoud/(mediumLoud) + 1500;
+//    releaseGlobal = 500 * (-1)* totalLoud / (mediumLoud * 1.5) + 1000;
   }
   else{
-    attackGlobal = 83;
-    sustainGlobal = 166;
-    releaseGlobal = 83;
+    outputMultiplier = 0.1;
+//    attackGlobal = 83;
+//    sustainGlobal = 166;
+//    releaseGlobal = 83;
   }
+  return outputMultiplier;
 }
 
 
 void cycle(){
-  pointerInc = TABLESIZE * (curFreqs[outInd] / samplingRate);
+  pointerInc = TABLESIZE * (outFreq / samplingRate);
   //grab sample from wavetable
   outVal = SineValues[(int)pointerVal];
 
@@ -333,7 +347,7 @@ char markov(char curVal) {
 }
 
 
-void trigNote(float freq, int atk, int sus, int rel){
+void trigNote(float freq, int atk, int sus, int rel, float multiplier){
   Serial.print("playing a note: ");
   Serial.print(freq);
   Serial.println();
@@ -352,6 +366,13 @@ void trigNote(float freq, int atk, int sus, int rel){
   noteEnd = millis() + envTimes[0] + envTimes[1] + envTimes[2];
   sectionStart = millis();
   sectionEnd = sectionStart + envTimes[0];
+  // rand between 250 and 750
+  int randAddon = random(500);
+  randAddon = randAddon + 250;
+  listenLength = (unsigned long) 2000*multiplier + randAddon;
+  if (listenLength < 200){
+    listenLength = 200;
+  }
   envState = 0;
 }
 
@@ -401,7 +422,7 @@ void setup() {
   pointerVal = map(0, 0, TWO_PI, 0, TABLESIZE - 1);
 
 
-  trigNote(100,500,1000,500);
+  trigNote(100,500,1000,500,1);
 
   
 //starts looking for C4
@@ -415,12 +436,12 @@ void loop() {
     goertzel.from(adcBuffer);
   }
 
-  Serial.print(listening);
-  Serial.println();
+//  Serial.print(listening);
+//  Serial.println();
   
       goertzel.updateFreq(curFreqsPlusLeader[5]);
       leaderMag = (goertzel.processAll() * 10);
-        if (leaderMag > 2000 && millis() > leaderTimer){
+        if (leaderMag > 3000 && millis() > leaderTimer){
           changeSectionFromLeader();
           leaderTimer = millis() + 10000;
         }
@@ -479,7 +500,7 @@ void loop() {
       }
     }
     //if max value is above a threshold, play a note
-    if (maxVal > 4000){
+    if (maxVal > 8000){
       Serial.println(maxVal);
       nextNote = markov(curGlobalNote);
       curGlobalNote = nextNote;
@@ -494,9 +515,10 @@ void loop() {
       chosenFreq = curFreqs[curNoteInd];
 
       //create the right asr values
-//      densityOfNotes();
+      float mult = densityOfNotes(magsMax);
+      Serial.print(mult);
 //      trigNote(chosenFreq, attackGlobal, sustainGlobal, releaseGlobal);
-      trigNote(chosenFreq, 500, 500, 500);
+      trigNote(chosenFreq, mult*500, mult*1000, mult*500, mult);
       listening = false;
       listenCount = 0;
     }
